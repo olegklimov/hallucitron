@@ -53,37 +53,62 @@ def default_config_path():
     return os.path.join(_repo_root(), _DEFAULT_CONFIG)
 
 
-def parse_config(data, use_env_keys=False):
+def _read_test_keys():
+    """Parse the repo's .test_api_keys (shell `export NAME=VALUE` lines) into a
+    {NAME: value} dict. Dev/test convenience; missing file yields {}."""
+    keys = {}
+    try:
+        with open(os.path.join(_repo_root(), ".test_api_keys")) as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return keys
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        name, sep, value = line.partition("=")
+        if sep:
+            keys[name.strip()] = value.strip().strip('"').strip("'")
+    return keys
+
+
+def parse_config(data, use_env_keys=False, use_test_keys=False):
     """Build a HalluConfig from already-parsed YAML/dict data.
 
-    use_env_keys=False: api keys are taken verbatim from the config (the multi-tenant
-        case -- the caller injected the keys it wants).
+    use_env_keys=False/use_test_keys=False: api keys are taken verbatim from the config
+        (the multi-tenant case -- the caller injected the keys it wants).
     use_env_keys=True:  each provider's api_key is filled from the env var it names in
         `api_key_env`, overriding whatever the config held. Use this only for local
-        runs/tests where keys live in the environment, not the config.
+        runs where keys live in the environment, not the config.
+    use_test_keys=True: same, but keys come from the repo's .test_api_keys file rather
+        than the environment (the dev/test convenience). Wins if both are set.
     """
     providers = dict(data.get("providers") or {})
     models = dict(data.get("models") or {})
-    if use_env_keys:
+    if use_env_keys or use_test_keys:
+        src = _read_test_keys() if use_test_keys else os.environ
         providers = {pid: dict(prov) for pid, prov in providers.items()}
         for prov in providers.values():
             env_name = prov.get("api_key_env")
             if env_name:
-                prov["api_key"] = os.environ.get(env_name, prov.get("api_key", ""))
+                prov["api_key"] = src.get(env_name, prov.get("api_key", ""))
     return HalluConfig(providers, models)
 
 
-def load_config(path, use_env_keys=False):
-    """Load a config from a YAML file. See parse_config for use_env_keys semantics."""
+def load_config(path, use_env_keys=False, use_test_keys=False):
+    """Load a config from a YAML file. See parse_config for key-source semantics."""
     with open(path) as f:
         data = yaml.safe_load(f)
-    return parse_config(data, use_env_keys=use_env_keys)
+    return parse_config(data, use_env_keys=use_env_keys, use_test_keys=use_test_keys)
 
 
-def load_default_config(use_env_keys=False):
+def load_default_config(use_env_keys=False, use_test_keys=False):
     """Load the built-in providers_default.yaml. By default api keys come from the
-    config as-is; pass use_env_keys=True to fill them from the environment instead."""
-    return load_config(default_config_path(), use_env_keys=use_env_keys)
+    config as-is; pass use_env_keys=True to fill them from the environment, or
+    use_test_keys=True to fill them from the repo's .test_api_keys file."""
+    return load_config(default_config_path(), use_env_keys=use_env_keys, use_test_keys=use_test_keys)
 
 
 def prefill_request_with_model(config, model):
