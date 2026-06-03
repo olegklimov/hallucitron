@@ -1,14 +1,14 @@
 # Hallucitron
 
-This project does the same as [litellm](https://github.com/BerriAI/litellm) but it is:
+This project does the same as [litellm](https://github.com/BerriAI/litellm), but:
 
 * Parallel code in Python and Rust
-* Takes best effort to reproduce provider pricing (Anthropic, xAI, OpenAI)
+* Makes a best effort to reproduce provider pricing (Anthropic, xAI, OpenAI)
 * Supports per-tenant configs for SaaS setups
 
 Features:
 
-* Anthropic API and Responses API
+* Anthropic API and Responses API (OpenAI, xAI and many others)
 * Structured output
 * Tool calls, strict and not strict
 * Images
