@@ -8,6 +8,7 @@ repository = "https://github.com/your-org/hallucitron"
 
 [lib]
 path = "src/lib.rs"
+doctest = false
 
 [dependencies]
 anyhow = "1"

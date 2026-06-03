@@ -1,0 +1,219 @@
+# Default hallucitron configuration: providers, their models, and per-model prices.
+#
+# Shape:
+#   providers:  map of provider-id -> {name, kind, endpoint, api_key, api_key_env,
+#                                      models: [model-name, ...], more_prices: {...}}
+#   `kind` is the adapter family: "openai", "anthropic", or "xai" (xai uses the
+#   openai-compatible adapter with a couple of xai-specific tweaks).
+#   models:     map of model-name -> price/capability table (pp1000t_*, modelcap_*, order)
+#
+# A provider OWNS a set of models (by name). Looking up a model finds the single
+# provider whose `models` list contains it.
+#
+# API keys:
+#   - `api_key` is the literal key for this provider (empty here; a real deployment
+#     injects per-tenant keys, or fills them from env -- see load_default_config).
+#   - `api_key_env` names the environment variable to read when keys are loaded from
+#     the environment (load_default_config(use_env_keys=True)).
+#
+# In a multi-tenant system each tenant supplies its own config (its own providers +
+# keys); this file is only the built-in default used by tests and examples.
+#
+# Prices: per-1000-tokens (pp1000t_*) and per-call (pp1call_*, pp1image), in integer
+# "coins" (1 coin = $1e-6). `more_prices` on a provider is merged into every model it
+# owns. Leave a model's prices empty and coins stays 0 while token usage still reports.
+
+providers:
+  xai_global:
+    name: xAI
+    kind: xai
+    endpoint: https://api.x.ai/v1
+    api_key: ""
+    api_key_env: XAI_API_KEY
+    models:
+      - grok-code-fast-1
+      - grok-4.20-0309-reasoning
+      - grok-4.20-0309-non-reasoning
+      - grok-4-1-fast-reasoning
+      - grok-4-1-fast-non-reasoning
+    # xAI server-side tool / per-image fees, merged into each model's prices.
+    more_prices:
+      pp1call_web_search: 5000
+      pp1call_x_search: 5000
+      pp1call_code_interpreter: 5000
+      pp1call_document_search: 5000
+      pp1call_file_search: 2500
+      pp1image: 52
+
+  openai_global:
+    name: OpenAI
+    kind: openai
+    endpoint: https://api.openai.com/v1
+    api_key: ""
+    api_key_env: OPENAI_API_KEY
+    models:
+      - gpt-5.4
+      - gpt-5.4-mini
+      - gpt-5.4-nano
+      - gpt-5.2
+      - gpt-5.1
+      - gpt-5-mini
+      - gpt-5-nano
+
+  anthropic_global:
+    name: Anthropic
+    kind: anthropic
+    endpoint: https://api.anthropic.com/v1
+    api_key: ""
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - claude-sonnet-4-6
+      - claude-opus-4-6
+      - claude-haiku-4-5-20250929
+
+models:
+  # --- xAI (added 20260331) ---
+  grok-4.20-0309-reasoning:
+    pp1000t_prompt: 0
+    pp1000t_prompt_text: 2000
+    pp1000t_prompt_audio: 2000
+    pp1000t_prompt_image: 2000
+    pp1000t_prompt_cached: 200
+    pp1000t_completion: 6000
+    pp1000t_completion_reasoning: 6000
+    modelcap_input_images: true
+    order: 1047
+  grok-4.20-0309-non-reasoning:
+    pp1000t_prompt: 0
+    pp1000t_prompt_text: 2000
+    pp1000t_prompt_audio: 2000
+    pp1000t_prompt_image: 2000
+    pp1000t_prompt_cached: 200
+    pp1000t_completion: 6000
+    pp1000t_completion_reasoning: 6000
+    modelcap_input_images: true
+    order: 1048
+  # --- xAI (added 20251120) ---
+  grok-4-1-fast-reasoning:
+    pp1000t_prompt: 0
+    pp1000t_prompt_text: 200
+    pp1000t_prompt_audio: 200
+    pp1000t_prompt_image: 200
+    pp1000t_prompt_cached: 50
+    pp1000t_completion: 500
+    pp1000t_completion_reasoning: 500
+    modelcap_input_images: true
+    order: 1045
+  grok-4-1-fast-non-reasoning:
+    pp1000t_prompt: 0
+    pp1000t_prompt_text: 200
+    pp1000t_prompt_audio: 200
+    pp1000t_prompt_image: 200
+    pp1000t_prompt_cached: 50
+    pp1000t_completion: 500
+    pp1000t_completion_reasoning: 500
+    modelcap_input_images: true
+    order: 1046
+  # --- xAI (added 20250908) ---
+  grok-code-fast-1:
+    pp1000t_prompt: 0
+    pp1000t_prompt_text: 200
+    pp1000t_prompt_audio: 200
+    pp1000t_prompt_image: 200
+    pp1000t_prompt_cached: 20
+    pp1000t_completion: 1500
+    pp1000t_completion_reasoning: 1500
+    modelcap_input_images: false
+    order: 1050
+
+  # --- Anthropic (added 20250615, modified 20251118) ---
+  claude-sonnet-4-6:
+    pp1000t_prompt: 0
+    pp1000t_prompt_without_cache: 3000
+    pp1000t_completion: 15000
+    pp1000t_completion_reasoning: 15000
+    pp1000t_cache_creation: 6000
+    pp1000t_cache_read: 300
+    modelcap_reasoning_effort: [high, low, medium, max]
+    modelcap_input_images: true
+    order: 3050
+  claude-opus-4-6:
+    pp1000t_prompt: 0
+    pp1000t_prompt_without_cache: 5000
+    pp1000t_completion: 25000
+    pp1000t_completion_reasoning: 25000
+    pp1000t_cache_creation: 10000
+    pp1000t_cache_read: 500
+    modelcap_reasoning_effort: [high, low, medium, max]
+    modelcap_input_images: true
+    order: 3040
+  claude-haiku-4-5-20250929:
+    pp1000t_prompt: 0
+    pp1000t_prompt_without_cache: 1000
+    pp1000t_completion: 5000
+    pp1000t_completion_reasoning: 5000
+    pp1000t_cache_creation: 1250
+    pp1000t_cache_read: 100
+    modelcap_input_images: true
+    order: 3060
+
+  # --- OpenAI (added 20260318) ---
+  gpt-5.4-mini:
+    pp1000t_prompt: 750
+    pp1000t_completion: 4500
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 75
+    modelcap_reasoning_effort: [none, low, medium, high, xhigh]
+    modelcap_input_images: true
+    order: 2041
+  gpt-5.4-nano:
+    pp1000t_prompt: 200
+    pp1000t_completion: 1250
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 20
+    modelcap_reasoning_effort: [none, low, medium, high, xhigh]
+    modelcap_input_images: true
+    order: 2042
+  # --- OpenAI (added 20260306) ---
+  gpt-5.4:
+    pp1000t_prompt: 2500
+    pp1000t_completion: 15000
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 250
+    modelcap_reasoning_effort: [none, low, medium, high, xhigh]
+    modelcap_input_images: true
+    order: 2040
+  # --- OpenAI (added 20260128) ---
+  gpt-5.2:
+    pp1000t_prompt: 1750
+    pp1000t_completion: 14000
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 175
+    modelcap_reasoning_effort: [none, low, medium, high, xhigh]
+    modelcap_input_images: true
+    order: 2040
+  # --- OpenAI (added 20250808, modified 20251118) ---
+  gpt-5.1:
+    pp1000t_prompt: 1250
+    pp1000t_completion: 10000
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 125
+    modelcap_reasoning_effort: [none, low, medium, high]
+    modelcap_input_images: true
+    order: 2045
+  gpt-5-mini:
+    pp1000t_prompt: 250
+    pp1000t_completion: 2000
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 25
+    modelcap_reasoning_effort: [minimal, low, medium, high]
+    modelcap_input_images: true
+    order: 2050
+  gpt-5-nano:
+    pp1000t_prompt: 50
+    pp1000t_completion: 400
+    pp1000t_completion_reasoning: 0
+    pp1000t_prompt_cached: 5
+    modelcap_reasoning_effort: [minimal, low, medium, high]
+    modelcap_input_images: true
+    order: 2060

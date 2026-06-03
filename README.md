@@ -18,26 +18,43 @@ Features:
 ## Layout
 
 ```
-hallucitron/        Python package  (import hallucitron)
+hallucitron/        Python package  (import hallucitron); live tests in test_python_version.py
 rust/               Rust crate      (src/lib.rs + Cargo.toml)
-tests/              Python live tests
 testfiles/          shared fixtures (tokyo_weather.pdf)
-test_models.yaml    model -> provider/endpoint/prices config
+providers_default.yaml   built-in providers -> models -> prices config
 .test_api_keys.example   template for local API keys (real file is git-ignored)
 ```
 
 ## Configuration
 
-Credentials come from environment variables; `test_models.yaml` maps each model to a
-provider, endpoint, the env var holding its key, and optional prices.
+A **config** is a set of *providers*, each owning a list of *models*, plus a per-model
+price/capability table. `providers_default.yaml` is the built-in default. Each provider
+carries a `kind` (adapter family: `openai`, `anthropic`, or `xai`), an `endpoint`, an
+`api_key`, and the env var name (`api_key_env`) to read when keys come from the
+environment. A model is looked up by name — the loader finds the single provider whose
+`models` list contains it.
+
+API keys can come from two places, chosen explicitly:
+
+- **From the config** (`use_env_keys=False`, the default) — keys are taken verbatim from
+  the config. This is the multi-tenant case: each tenant supplies its own config with its
+  own providers and keys; the library never reads the environment.
+- **From the environment** (`use_env_keys=True`) — each provider's `api_key` is filled
+  from the env var named in its `api_key_env`, for local runs where keys live in env.
+
+```python
+import hallucitron as h
+
+cfg = h.load_default_config(use_env_keys=True)        # built-in providers, keys from env
+cfg = h.load_config("my_tenant.yaml")                 # a tenant's own config, keys in-file
+```
 
 ```sh
 cp .test_api_keys.example .test_api_keys   # then edit in your keys
-source .test_api_keys
 ```
 
-`HALLU_MODELS` overrides the config path (defaults to `test_models.yaml` in the cwd for
-the library; the test suites point it at the repo copy automatically).
+The live tests read keys **only** from `.test_api_keys` (never from environment
+variables) and inject them into the default config.
 
 ## Python
 
@@ -50,7 +67,8 @@ import asyncio
 import hallucitron as h
 
 async def main():
-    req = h.prefill_request_with_model("claude-sonnet-4-6")
+    cfg = h.load_default_config(use_env_keys=True)
+    req = h.prefill_request_with_model(cfg, "claude-sonnet-4-6")
     req.messages = [
         h.HalluMessage("system", "You are concise.", ""),
         h.HalluMessage("user", "Name three primary colors.", ""),
@@ -75,7 +93,8 @@ cd rust && cargo build
 ```
 
 ```rust
-let mut req = hallucitron::hallu_providers::prefill_request_with_model("claude-sonnet-4-6")?;
+let cfg = hallucitron::hallu_providers::load_default_config(true)?;  // keys from env
+let mut req = hallucitron::hallu_providers::prefill_request_with_model(&cfg, "claude-sonnet-4-6")?;
 req.messages = vec![ /* HalluMessage values */ ];
 req.max_tokens = 200;
 let r = hallucitron::hallu_call(&req).await?;
@@ -87,16 +106,15 @@ Streaming text deltas are delivered through `req.delta_tx` (a
 
 ## Tests
 
-The live tests hit real provider APIs and **cost money**. They need the matching API key
-in the environment; without it they skip (pytest) or error (cargo).
+The live tests hit real provider APIs and **cost money**. They read keys from
+`.test_api_keys` (not the environment); a provider whose key is absent is skipped
+(pytest) or errors (cargo). No `source` step is needed.
 
 ```sh
-source .test_api_keys
-
-# Python (pytest skips providers whose key is unset)
-pytest tests/
+# Python (pytest skips providers whose key is missing from .test_api_keys)
+pytest hallucitron/test_python_version.py
 # or run a subset directly:
-python tests/test_live.py pdf_anthropic toolcall_openai
+python hallucitron/test_python_version.py pdf_anthropic toolcall_openai
 
 # Rust
 cd rust && cargo test -- --nocapture

@@ -21,7 +21,7 @@ pub struct HalluStructuredRequest {
     pub prov_endpoint: String,          // override endpoint (empty = default)
     pub prov_api_key: String,
     pub provm_name: String,
-    pub provm_prices: Value,            // pp1000t_* price map (see test_models.yaml), used for coin calculation
+    pub provm_prices: Value,            // pp1000t_* price map (see providers_default.yaml), used for coin calculation
     pub messages: Vec<HalluMessage>,
     pub output_schema: Value,           // json schema for structured output
     pub output_schema_name: String,     // name for the schema (anthropic wants it)

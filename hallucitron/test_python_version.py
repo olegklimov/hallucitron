@@ -11,42 +11,53 @@ try:
 except ImportError:
     pytest = None
 
-# Live tests: they hit the real provider APIs and cost money. Each requires the matching
-# API key in the environment (see .test_api_keys.example). Under pytest, a test is skipped
-# when its key is missing. API keys load from .test_api_keys automatically (see
-# _load_test_api_keys below). Run a subset directly:
-#   python hallucitron/test_python_version.py pdf_anthropic
+# Live tests: they hit the real provider APIs and cost money. Keys are read from the
+# repo's .test_api_keys file (NOT from environment variables) and injected into the
+# default config; a test is skipped under pytest when its provider's key is absent.
+# Run a subset directly:  python hallucitron/test_python_version.py pdf_anthropic
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ARENA = os.path.join(_REPO_ROOT, "arena")
 _REQ_DUMP_DIR = os.path.join(_ARENA, "req")
 
 
-def _load_test_api_keys():
-    """Read .test_api_keys (shell `export KEY=VALUE` lines) into os.environ so the
-    tests find their keys without a separate `source .test_api_keys`. Existing env
-    vars win, so `source`-ing first still overrides the file."""
+def _read_test_api_keys():
+    """Parse .test_api_keys (shell `export NAME=VALUE` lines) into a {NAME: value}
+    dict. This is the ONLY source of keys for the tests -- environment variables are
+    deliberately not consulted."""
     path = os.path.join(_REPO_ROOT, ".test_api_keys")
+    keys = {}
     try:
         with open(path) as f:
             lines = f.readlines()
     except FileNotFoundError:
-        return
+        return keys
     for line in lines:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith("export "):
             line = line[len("export "):]
-        key, sep, value = line.partition("=")
+        name, sep, value = line.partition("=")
         if not sep:
             continue
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        keys[name.strip()] = value.strip().strip('"').strip("'")
+    return keys
 
 
-_load_test_api_keys()
+def _load_test_config():
+    """Default config with api keys filled from .test_api_keys (not the environment)."""
+    keys = _read_test_api_keys()
+    cfg = hallu_providers.load_default_config(use_env_keys=False)
+    for prov in cfg.providers.values():
+        env_name = prov.get("api_key_env")
+        if env_name and keys.get(env_name):
+            prov["api_key"] = keys[env_name]
+    return cfg
+
+
+_TEST_KEYS = _read_test_api_keys()
+_CONFIG = _load_test_config()
 
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
 OPENAI_MODEL = "gpt-5.4"
@@ -58,7 +69,7 @@ MEME_IMAGE_URL = "https://images.techadvisor.com/cmsdata/slideshow/3634008/funny
 
 
 def prefill_request(model):
-    return hallu_providers.prefill_request_with_model(model)
+    return hallu_providers.prefill_request_with_model(_CONFIG, model)
 
 
 def tokyo_pdf_path():
@@ -321,8 +332,8 @@ ALL_TESTS = {
 
 def _make_pytest(name, provider, model, fn):
     def test():
-        if not os.getenv(_KEY_ENV[provider]):
-            pytest.skip("%s not set" % _KEY_ENV[provider])
+        if not _TEST_KEYS.get(_KEY_ENV[provider]):
+            pytest.skip("%s not in .test_api_keys" % _KEY_ENV[provider])
         asyncio.run(fn(provider, model))
     test.__name__ = "test_" + name
     return test

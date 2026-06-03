@@ -5,35 +5,100 @@ import yaml
 from hallucitron.hallu_structs import HalluStructuredRequest
 
 
-# Credentials come from env vars (see .test_api_keys.example); test_models.yaml maps
-# each model to a provider, endpoint, the env var holding its key, and optional prices.
+# A hallucitron config is a set of providers, each owning a list of models, plus a
+# per-model price/capability table. See providers_default.yaml for the on-disk shape.
+#
+# A real application using this library supplies its own config -- in a multi-tenant
+# system each tenant has a separate config with its own providers and api keys.
+# load_default_config() loads the built-in providers_default.yaml, with an explicit
+# choice of whether api keys come from the environment or straight from the config.
 
 
-def models_path():
-    return os.environ.get("HALLU_MODELS") or os.path.join(_repo_root(), "test_models.yaml")
+_DEFAULT_CONFIG = "providers_default.yaml"
+
+
+class HalluConfig:
+    """Parsed providers + models. `providers` maps provider-id -> provider dict;
+    `models` maps model-name -> price/capability dict (with the owning provider's
+    `more_prices` already merged in)."""
+
+    def __init__(self, providers, models):
+        self.providers = providers
+        self.models = models
+        # model-name -> provider-id, built once for fast lookup.
+        self._owner = {}
+        for pid, prov in providers.items():
+            for model in prov.get("models") or []:
+                self._owner[model] = pid
+
+    def provider_for_model(self, model):
+        pid = self._owner.get(model)
+        if pid is None:
+            raise RuntimeError("model %r not owned by any provider" % model)
+        return pid, self.providers[pid]
+
+    def prices_for_model(self, model):
+        """Model price table with the owning provider's more_prices merged in."""
+        _, prov = self.provider_for_model(model)
+        prices = dict(self.models.get(model) or {})
+        prices.update(prov.get("more_prices") or {})
+        return prices
 
 
 def _repo_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def load_models(path=None):
-    path = path or models_path()
+def default_config_path():
+    return os.path.join(_repo_root(), _DEFAULT_CONFIG)
+
+
+def parse_config(data, use_env_keys=False):
+    """Build a HalluConfig from already-parsed YAML/dict data.
+
+    use_env_keys=False: api keys are taken verbatim from the config (the multi-tenant
+        case -- the caller injected the keys it wants).
+    use_env_keys=True:  each provider's api_key is filled from the env var it names in
+        `api_key_env`, overriding whatever the config held. Use this only for local
+        runs/tests where keys live in the environment, not the config.
+    """
+    providers = dict(data.get("providers") or {})
+    models = dict(data.get("models") or {})
+    if use_env_keys:
+        providers = {pid: dict(prov) for pid, prov in providers.items()}
+        for prov in providers.values():
+            env_name = prov.get("api_key_env")
+            if env_name:
+                prov["api_key"] = os.environ.get(env_name, prov.get("api_key", ""))
+    return HalluConfig(providers, models)
+
+
+def load_config(path, use_env_keys=False):
+    """Load a config from a YAML file. See parse_config for use_env_keys semantics."""
     with open(path) as f:
-        return yaml.safe_load(f)["models"]
+        data = yaml.safe_load(f)
+    return parse_config(data, use_env_keys=use_env_keys)
 
 
-def prefill_request_with_model(model, path=None):
-    m = load_models(path).get(model)
-    if m is None:
-        raise RuntimeError("model %r not in %s" % (model, path or models_path()))
-    api_key = os.environ.get(m["api_key_env"], "")
+def load_default_config(use_env_keys=False):
+    """Load the built-in providers_default.yaml. By default api keys come from the
+    config as-is; pass use_env_keys=True to fill them from the environment instead."""
+    return load_config(default_config_path(), use_env_keys=use_env_keys)
+
+
+def prefill_request_with_model(config, model):
+    """Build a request for `model`, resolving its owning provider from `config`."""
+    _, prov = config.provider_for_model(model)
+    api_key = prov.get("api_key", "")
     if not api_key:
-        raise RuntimeError("env var %s not set (try: source .test_api_keys)" % m["api_key_env"])
+        raise RuntimeError(
+            "no api_key for provider of model %r "
+            "(set it in the config, or load with use_env_keys=True)" % model
+        )
     return HalluStructuredRequest(
-        prov_name=m["provider"],
-        prov_endpoint=m["endpoint"],
+        prov_name=prov["kind"],
+        prov_endpoint=prov["endpoint"],
         prov_api_key=api_key,
         provm_name=model,
-        provm_prices=m.get("prices") or {},
+        provm_prices=config.prices_for_model(model),
     )

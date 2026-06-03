@@ -106,10 +106,10 @@ fn req_dump_path(experiment: &str, provider_name: &str) -> String {
 
 pub async fn run_pdf(model: &str, provider_name: &str) {
     println!();
-    super::hallu_providers::load_test_env();
+    let cfg = super::hallu_providers::load_test_config();
     let mut log = HalluLog::new(provider_name, "pdf");
 
-    let mut req = super::hallu_providers::prefill_request_with_model(model).expect("prefill failed");
+    let mut req = super::hallu_providers::prefill_request_with_model(&cfg, model).expect("prefill failed");
     req.messages = pdf_messages();
     req.output_schema = weather_schema();
     req.output_schema_name = "weather".into();
@@ -136,10 +136,10 @@ pub async fn run_pdf(model: &str, provider_name: &str) {
 
 pub async fn run_image(model: &str, provider_name: &str) {
     println!();
-    super::hallu_providers::load_test_env();
+    let cfg = super::hallu_providers::load_test_config();
     let mut log = HalluLog::new(provider_name, "image");
 
-    let mut req = super::hallu_providers::prefill_request_with_model(model).expect("prefill failed");
+    let mut req = super::hallu_providers::prefill_request_with_model(&cfg, model).expect("prefill failed");
     req.messages = image_messages();
     req.max_tokens = 512;
     req.temperature = Some(0.0);
@@ -247,10 +247,10 @@ fn append_tool_round(req: &mut super::hallu_structs::HalluStructuredRequest, r: 
 
 pub async fn run_toolcall(model: &str, provider_name: &str) {
     println!();
-    super::hallu_providers::load_test_env();
+    let cfg = super::hallu_providers::load_test_config();
     let mut log = HalluLog::new(provider_name, "toolcall");
 
-    let mut req = super::hallu_providers::prefill_request_with_model(model).expect("prefill failed");
+    let mut req = super::hallu_providers::prefill_request_with_model(&cfg, model).expect("prefill failed");
     req.messages = toolcall_messages();
     req.tools = weather_tools();
     req.max_tokens = 1024;
@@ -282,10 +282,10 @@ pub async fn run_toolcall(model: &str, provider_name: &str) {
 
 pub async fn run_toolcall_streaming(model: &str, provider_name: &str) {
     println!();
-    super::hallu_providers::load_test_env();
+    let cfg = super::hallu_providers::load_test_config();
     let mut log = HalluLog::new(provider_name, "toolcall_stream");
 
-    let mut req = super::hallu_providers::prefill_request_with_model(model).expect("prefill failed");
+    let mut req = super::hallu_providers::prefill_request_with_model(&cfg, model).expect("prefill failed");
     req.messages = toolcall_messages();
     req.tools = weather_tools();
     req.max_tokens = 1024;
@@ -374,10 +374,10 @@ impl HalluLog {
 
 pub async fn run_toolcall_streaming_thinking(model: &str, provider_name: &str) {
     println!();
-    super::hallu_providers::load_test_env();
+    let cfg = super::hallu_providers::load_test_config();
     let mut log = HalluLog::new(provider_name, "toolcall_thinking_stream");
 
-    let mut req = super::hallu_providers::prefill_request_with_model(model).expect("prefill failed");
+    let mut req = super::hallu_providers::prefill_request_with_model(&cfg, model).expect("prefill failed");
     req.messages = toolcall_messages();
     req.tools = weather_tools();
     req.max_tokens = 16384;
