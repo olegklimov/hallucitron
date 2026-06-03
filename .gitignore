@@ -1,0 +1,17 @@
+# Secrets -- never commit
+.test_api_keys
+
+# Test/run artifacts
+arena/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Rust
+rust/target/
+Cargo.lock
