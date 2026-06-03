@@ -61,7 +61,7 @@ _CONFIG = _load_test_config()
 
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
 OPENAI_MODEL = "gpt-5.4"
-XAI_MODEL = "grok-4-1-fast-reasoning"
+XAI_MODEL = "grok-4.20-0309-reasoning"
 
 _KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY"}
 

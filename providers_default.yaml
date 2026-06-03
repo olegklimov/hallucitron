@@ -43,7 +43,16 @@ providers:
       pp1call_code_interpreter: 5000
       pp1call_document_search: 5000
       pp1call_file_search: 2500
-      pp1image: 52
+      # pp1image: 52
+      # Per-image flat fee. Empirically derived (grok-4.20-0309-reasoning, 20260603):
+      # an image is ~443 input tokens that xAI does NOT discount when the prompt is
+      # cache-hit -- they keep billing at the full input rate (1250/1Mt) while we
+      # count them in cached_tokens at the cheap cache rate (200/1Mt). That under-
+      # count is a constant ~414 coins per cached image (xAI cost_in_usd_ticks minus
+      # our coins, identical across repeated cached calls). On a fresh (uncached)
+      # image the token rates already match, so this fee slightly over-counts there;
+      # 414 is the best single value matching the steady-state cached case.
+      pp1image: 414
 
   openai_global:
     name: OpenAI
@@ -75,22 +84,22 @@ models:
   # --- xAI (added 20260331) ---
   grok-4.20-0309-reasoning:
     pp1000t_prompt: 0
-    pp1000t_prompt_text: 2000
-    pp1000t_prompt_audio: 2000
-    pp1000t_prompt_image: 2000
+    pp1000t_prompt_text: 1250
+    pp1000t_prompt_audio: 1250
+    pp1000t_prompt_image: 1250
     pp1000t_prompt_cached: 200
-    pp1000t_completion: 6000
-    pp1000t_completion_reasoning: 6000
+    pp1000t_completion: 2500
+    pp1000t_completion_reasoning: 2500
     modelcap_input_images: true
     order: 1047
   grok-4.20-0309-non-reasoning:
     pp1000t_prompt: 0
-    pp1000t_prompt_text: 2000
-    pp1000t_prompt_audio: 2000
-    pp1000t_prompt_image: 2000
+    pp1000t_prompt_text: 1250
+    pp1000t_prompt_audio: 1250
+    pp1000t_prompt_image: 1250
     pp1000t_prompt_cached: 200
-    pp1000t_completion: 6000
-    pp1000t_completion_reasoning: 6000
+    pp1000t_completion: 2500
+    pp1000t_completion_reasoning: 2500
     modelcap_input_images: true
     order: 1048
   # --- xAI (added 20251120) ---
