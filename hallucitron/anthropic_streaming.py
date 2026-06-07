@@ -4,7 +4,7 @@ import logging
 import httpx
 
 from hallucitron import anthropic_adapt
-from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body
+from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body, parse_structured_text
 
 
 logger = logging.getLogger("hallu")
@@ -231,7 +231,7 @@ async def anthropic_streaming_call(req):
         elif req.output_schema is None:
             parsed = raw_text
         else:
-            parsed = json.loads(raw_text)
+            parsed = parse_structured_text(raw_text)
         log.append("usage: input=%d output=%d cache_creation=%d cache_read=%d" % (
             usage_input, usage_output, usage_cache_creation, usage_cache_read,
         ))

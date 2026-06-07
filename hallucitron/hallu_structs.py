@@ -1,7 +1,6 @@
 import json
 import os
 import logging
-import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable, Awaitable, Union
 
@@ -115,19 +114,12 @@ class HalluStructuredResult:
 
 
 def parse_structured_text(raw_text):
-    # Strict-schema responses should be one clean JSON value, but grok sometimes appends
-    # stray text after it ("Extra data"). Recover the first value via raw_decode, and trace
-    # the raw response to /tmp so the mess is inspectable rather than lost.
-    s = raw_text.lstrip()
-    try:
-        return json.loads(s)
-    except json.JSONDecodeError:
-        fd, path = tempfile.mkstemp(prefix="hallu_badjson_", suffix=".txt", dir="/tmp")
-        with os.fdopen(fd, "w") as f:
-            f.write(raw_text)
-        parsed, _ = json.JSONDecoder().raw_decode(s)
-        log.warning("structured output had trailing junk; recovered first value, raw dumped to %s", path)
-        return parsed
+    # A strict-schema response is one clean JSON value, but grok stochastically (~1%) appends a stray
+    # token after the otherwise-complete object -- a plain json.loads then raises "Extra data". Two such
+    # failures in a row defeated hallu_call's retry-once and crashed the service, so read the leading
+    # value with raw_decode and drop trailing junk. A genuinely truncated object still raises and retries.
+    obj, _ = json.JSONDecoder().raw_decode(raw_text.lstrip())
+    return obj
 
 
 def dump_req_body(req, body):

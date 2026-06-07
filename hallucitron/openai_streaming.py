@@ -3,7 +3,7 @@ import json
 import httpx
 
 from hallucitron import openai_adapt
-from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body
+from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body, parse_structured_text
 
 
 SSE_JUNK_KEYS = {
@@ -144,7 +144,7 @@ async def openai_streaming_call(req):
         elif req.output_schema is None:
             parsed = raw_text
         else:
-            parsed = json.loads(raw_text)
+            parsed = parse_structured_text(raw_text)
         actual_model = resp_obj.get("model", req.provm_name)
         stop_reason = resp_obj.get("status", "")
         response_id = resp_obj.get("id", "")

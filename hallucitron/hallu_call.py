@@ -24,6 +24,16 @@ async def hallu_call(req):
         req.req_dump_path = body_path
     try:
         result = await _dispatch(req)
+    except json.JSONDecodeError:
+        # Strict-schema JSON is normally well-formed, but grok stochastically (~1%) appends a stray
+        # token to an otherwise-complete object. A fresh call returns clean, so retry once rather
+        # than recover heuristically. A second failure is real -- dump forensics and raise.
+        logger.warning("structured JSON parse failed; retrying once")
+        try:
+            result = await _dispatch(req)
+        except Exception:
+            _dump_forensics(req, fid)
+            raise
     except Exception:
         _dump_forensics(req, fid)
         raise

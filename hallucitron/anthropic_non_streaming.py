@@ -5,7 +5,7 @@ import httpx
 
 from hallucitron import anthropic_adapt
 from hallucitron.anthropic_streaming import _apply_anthropic_thinking
-from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body
+from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body, parse_structured_text
 
 
 logger = logging.getLogger("hallu")
@@ -103,7 +103,7 @@ def _parse_anthropic_response(resp, req):
     elif req.output_schema is None:
         parsed = raw_text
     else:
-        parsed = json.loads(raw_text)
+        parsed = parse_structured_text(raw_text)
     usage = resp.get("usage", {})
     input_tokens = usage.get("input_tokens", 0)
     output_tokens = usage.get("output_tokens", 0)
