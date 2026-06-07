@@ -1,7 +1,11 @@
 import json
 import os
+import logging
+import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable, Awaitable, Union
+
+log = logging.getLogger("hallu")
 
 
 class HalluApiError(RuntimeError):
@@ -108,6 +112,22 @@ class HalluStructuredResult:
     response_id: str = ""
     provider_usage_json: Dict[str, Any] = field(default_factory=dict)
     sse_log: List[Dict[str, Any]] = field(default_factory=list)
+
+
+def parse_structured_text(raw_text):
+    # Strict-schema responses should be one clean JSON value, but grok sometimes appends
+    # stray text after it ("Extra data"). Recover the first value via raw_decode, and trace
+    # the raw response to /tmp so the mess is inspectable rather than lost.
+    s = raw_text.lstrip()
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        fd, path = tempfile.mkstemp(prefix="hallu_badjson_", suffix=".txt", dir="/tmp")
+        with os.fdopen(fd, "w") as f:
+            f.write(raw_text)
+        parsed, _ = json.JSONDecoder().raw_decode(s)
+        log.warning("structured output had trailing junk; recovered first value, raw dumped to %s", path)
+        return parsed
 
 
 def dump_req_body(req, body):

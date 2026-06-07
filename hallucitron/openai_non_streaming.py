@@ -3,7 +3,7 @@ import json
 import httpx
 
 from hallucitron import openai_adapt
-from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body
+from hallucitron.hallu_structs import HalluStructuredRequest, HalluStructuredResult, HalluToolCall, HalluUsage, HalluApiError, dump_req_body, parse_structured_text
 
 
 async def openai_non_streaming_call(req):
@@ -72,7 +72,7 @@ async def openai_non_streaming_call(req):
         elif req.output_schema is None:
             parsed = raw_text
         else:
-            parsed = json.loads(raw_text)
+            parsed = parse_structured_text(raw_text)
         usage = data.get("usage", {})
         provider_usage_json = usage
         input_tokens = usage.get("input_tokens", 0)

@@ -1,4 +1,7 @@
+import os
+import json
 import logging
+import dataclasses
 
 from hallucitron import anthropic_non_streaming
 from hallucitron import anthropic_streaming
@@ -8,23 +11,73 @@ from hallucitron import openai_streaming
 
 logger = logging.getLogger("hallu")
 
+_seq = 0
+
 
 async def hallu_call(req):
-    model = req.provm_name
-    is_openai_compat = any(model.startswith(p) for p in ("gpt-", "o1-", "o3-", "o4-", "grok-"))
-    if model.startswith("claude-") and req.streaming:
-        result = await anthropic_streaming.anthropic_streaming_call(req)
-    elif model.startswith("claude-"):
-        result = await anthropic_non_streaming.anthropic_non_streaming_call(req)
-    elif is_openai_compat and req.streaming:
-        result = await openai_streaming.openai_streaming_call(req)
-    elif is_openai_compat:
-        result = await openai_non_streaming.openai_non_streaming_call(req)
-    else:
-        raise ValueError("hallu_call: unknown model prefix for %r" % model)
+    global _seq
+    _seq += 1
+    fid = "%d-%d" % (os.getpid(), _seq)
+    body_path = "/tmp/hallu-error-%s-body.json" % fid
+    ours = not req.req_dump_path   # capture the body so a failure is replayable; honor a caller's own path
+    if ours:
+        req.req_dump_path = body_path
+    try:
+        result = await _dispatch(req)
+    except Exception:
+        _dump_forensics(req, fid)
+        raise
+    if ours:
+        _quiet_remove(body_path)  # success: nothing to investigate
     result.usage.input_images = _count_input_images(req.messages)
     _apply_prices(result, req.provm_prices)
     return result
+
+
+async def _dispatch(req):
+    model = req.provm_name
+    is_openai_compat = any(model.startswith(p) for p in ("gpt-", "o1-", "o3-", "o4-", "grok-"))
+    if model.startswith("claude-") and req.streaming:
+        return await anthropic_streaming.anthropic_streaming_call(req)
+    elif model.startswith("claude-"):
+        return await anthropic_non_streaming.anthropic_non_streaming_call(req)
+    elif is_openai_compat and req.streaming:
+        return await openai_streaming.openai_streaming_call(req)
+    elif is_openai_compat:
+        return await openai_non_streaming.openai_non_streaming_call(req)
+    raise ValueError("hallu_call: unknown model prefix for %r" % model)
+
+
+def _quiet_remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _dump_forensics(req, fid):
+    # The body was dumped to req.req_dump_path by the provider mid-call; pair it with the raw
+    # messages and creds so the failure replays offline via replay_dumped_request.
+    msgs_path = "/tmp/hallu-error-%s-messages.json" % fid
+    creds_path = "/tmp/hallu-error-%s-creds.json" % fid
+    try:
+        with open(msgs_path, "w") as f:
+            json.dump([dataclasses.asdict(m) for m in req.messages], f, indent=2, ensure_ascii=False, default=str)
+        with open(creds_path, "w") as f:
+            json.dump({
+                "prov_name": req.prov_name,
+                "prov_endpoint": req.prov_endpoint,
+                "prov_api_key": req.prov_api_key,
+                "provm_name": req.provm_name,
+            }, f, indent=2)
+    except Exception as e:
+        logger.warning("hallu_call: could not write forensics: %s", e)
+        return
+    logger.error(
+        "hallu_call failed; saved forensics:\n  body:  %s\n  msgs:  %s\n  creds: %s\n"
+        "reproduce: python -m hallucitron.replay_dumped_request %s %s",
+        req.req_dump_path, msgs_path, creds_path, req.req_dump_path, creds_path,
+    )
 
 
 def _count_input_images(messages):
